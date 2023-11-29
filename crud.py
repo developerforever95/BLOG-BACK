@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from models import Users
+from models import Users, Blog 
 from schemas import UserData
 
 def get_users(db: Session):
@@ -19,4 +19,7 @@ def create_user(db: Session, user: UserData):
     db.commit()
     db.flush(new_user)
     return new_user
+
+def get_blogs(db: Session):
+    return db.query(Blog).all()
     
