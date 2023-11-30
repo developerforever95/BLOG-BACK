@@ -49,8 +49,13 @@ def get_users(db: Session = Depends(get_db)):
 @app.post('/login')
 def login(username: str, password: str, db: Session = Depends(get_db)):
     user = db.query(Users).filter(Users.name == username).first()
-    if user and user.password == password:  
-        return {"token": "token-simulado"}  
+    if user and user.password == password:
+        user_info = {
+            "id": user.id,
+            "username": user.name,
+            "email": user.email,          
+        }
+        return {"token": "token-simulado", "user": user_info}
     raise HTTPException(status_code=400, detail="Credenciales incorrectas")
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -120,3 +125,19 @@ def get_all_blogs(db: Session = Depends(get_db)):
     return blogs
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+@app.get('/blogs/{blog_id}', response_model=BlogDisplay)
+def get_blog(blog_id: int, db: Session = Depends(get_db)):
+    blog = db.query(Blog).filter(Blog.id == blog_id).first()
+    if blog is None:
+        raise HTTPException(status_code=404, detail="Blog no encontrado")
+
+    blog.image_url = f"http://127.0.0.1:8000/imgs/{blog.image_name}"
+    return blog
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+@app.get("/user/{user_id}/blogs")
+def get_user_blogs(user_id: int, db: Session = Depends(get_db)):
+    blogs = db.query(Blog).filter(Blog.user_id == user_id).all()
+    return blogs
