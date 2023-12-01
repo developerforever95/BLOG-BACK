@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
 
 import crud
+import os
 from database import engine, localSession
 from schemas import UserCreate, UserId, BlogCreate, BlogDisplay
 from models import Base, Users, Blog 
@@ -15,7 +16,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 origin = [
-    'http://localhost:5174'
+    'http://localhost:5173'
 ]
 
 app.mount("/imgs", StaticFiles(directory="imgs"), name="imgs")
@@ -141,3 +142,57 @@ def get_blog(blog_id: int, db: Session = Depends(get_db)):
 def get_user_blogs(user_id: int, db: Session = Depends(get_db)):
     blogs = db.query(Blog).filter(Blog.user_id == user_id).all()
     return blogs
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+@app.delete("/blogdelete/{blog_id}")
+def delete_blog(blog_id: int, db: Session = Depends(get_db)):
+    blog = db.query(Blog).filter(Blog.id == blog_id).first()
+    if not blog:
+        raise HTTPException(status_code=404, detail="Blog no encontrado")
+
+    db.delete(blog)
+    db.commit()
+    return {"message": "Blog eliminado con éxito"}
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+@app.put("/blogedit/{blog_id}", response_model=BlogDisplay)
+def edit_blog(blog_id: int, 
+              title: str = Form(...), 
+              description: str = Form(...),
+              link: str = Form(...),
+              category: str = Form(...),
+              user_id: int = Form(...), 
+              image: UploadFile = File(None),  
+              db: Session = Depends(get_db)):
+
+    blog = db.query(Blog).filter(Blog.id == blog_id).first()
+    if not blog:
+        raise HTTPException(status_code=404, detail="Blog no encontrado")
+
+    if blog.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Operación no permitida")
+
+    # Si se proporciona una nueva imagen, elimina la antigua del servidor
+    if image:
+        old_image_file = f"imgs/{blog.image_name}"
+        if os.path.exists(old_image_file):
+            os.remove(old_image_file)
+
+        # Guardar la nueva imagen
+        new_image_file = f"imgs/{image.filename}"
+        with open(new_image_file, "wb+") as file_object:
+            file_object.write(image.file.read())
+        blog.image_name = image.filename
+
+    # Actualizar otros campos
+    blog.title = title
+    blog.description = description
+    blog.link = link
+    blog.category = category
+
+    db.commit()
+    blog.image_url = f"http://127.0.0.1:8000/imgs/{blog.image_name}"
+    return blog
